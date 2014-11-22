@@ -47,7 +47,8 @@ flexgetDelta = timedelta(hours=2)
 # to lock the system, just use the touchcommand: "touch /home/media/.suspendlockfile" (or create a starter to it)
 # to unlock the system, just use rmcommand "rm /home/media/.suspendlockfile" (or create a starter to it)
 lockfilelist = [
-'/home/anders/.suspendlock'
+'/home/anders/.suspendlock',
+'/home/anders/.cameracopy_suspendlock'
 ]
 # the path to the xmbc webserver, edit this if you use another port for instance
 #xbmcAdressJSON = "http://127.0.0.1:8080/jsonrpc"
@@ -172,25 +173,34 @@ while keeponrunnin:
     screensaver_active = {"jsonrpc": "2.0", "method": "XBMC.GetInfoBooleans", "params": { "booleans": ["System.ScreenSaverActive "] }, "id": 1}
     headers = {'content-type': 'application/json'}
 
-    r = requests.post(url, data=json.dumps(active_players), headers=headers)
-    if r.status_code == 200:
-        content = json.loads(r.content)
-        if content.has_key("result"):
-            if len(content["result"]):
-                #print "XBMC is playing something"
-                xbmcIdletime = 0
-            else:
-                #print "Nothing is playing in XBMC"
-                xbmcIdletime += 1
+    try: r = requests.post(url, data=json.dumps(active_players), headers=headers)
+    except requests.ConnectionError as e:
+        log(str(e))
+        xbmcIdletime +=1
+        if xbmcIdletime >= xbmcDelay:
+            psgrepxbmc = popen("ps -e | grep xbmc").read()
+            if len(psgrepxbmc) == 0:
+                log("XBMC not found using grep, most likely not running! starting XBMC...")
+                system("xbmc &")
     else:
-        log("XBMC webinterface (jsonRPC) is not responding, checking if xbmc is running")
-        psgrepxbmc = popen("ps -e | grep xbmc").read()
-        if len(psgrepxbmc) == 0:
-            log("XBMC not found using grep, most likely not running! starting XBMC...")
-            system("xbmc &")
+        if r.status_code == 200:
+            content = json.loads(r.content)
+            if content.has_key("result"):
+                if len(content["result"]):
+                    #print "XBMC is playing something"
+                    xbmcIdletime = 0
+                else:
+                    #print "Nothing is playing in XBMC"
+                    xbmcIdletime += 1
         else:
-            log("XBMC is running, but jsonrpc is not responding")
-            xbmcIdletime += 1
+            log("XBMC webinterface (jsonRPC) is not responding, checking if xbmc is running")
+            psgrepxbmc = popen("ps -e | grep xbmc").read()
+            if len(psgrepxbmc) == 0:
+                log("XBMC not found using grep, most likely not running! starting XBMC...")
+                system("xbmc &")
+            else:
+                log("XBMC is running, but jsonrpc is not responding")
+                xbmcIdletime += 1
 
 
 # counting the number of lockfiles
